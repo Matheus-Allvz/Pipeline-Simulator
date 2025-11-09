@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Pipeline e Cache (RV32I)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .font-mono {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        .chartjs-tooltip {
+            background-color: rgba(17, 24, 39, 0.9) !important;
+            border: 1px solid #4b5563;
         }
     </style>
 </head>
@@ -22,25 +27,36 @@
                 <h2 class="text-xl font-semibold mb-4">Configuração</h2>
                 
                 <label for="code-input" class="block mb-2 font-medium">Código Assembly (RV32I):</label>
-                <textarea id="code-input" rows="10" class="w-full p-2 bg-gray-900 text-gray-100 rounded border border-gray-700 font-mono" placeholder="addi x1, x0, 10&#10;lw x2, 4(x0)&#10;add x3, x2, x1  ; Hazard aqui!&#10;sw x3, 8(x0)&#10;sub x4, x1, x1"></textarea>
+                <textarea id="code-input" rows="10" class="w-full p-2 bg-gray-900 text-gray-100 rounded border border-gray-700 font-mono" placeholder="Selecione um benchmark ou cole seu código..."></textarea>
+
+                <label for="benchmark-select" class="block mb-2 font-medium mt-4">Carregar Benchmark:</label>
+                <select id="benchmark-select" class="w-full p-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Selecione um benchmark --</option>
+                    <option value="sum">1. Somatório (ALU-bound)</option>
+                    <option value="seq">2. Varredura Sequencial (MEM-bound)</option>
+                    <option value="stride">3. Varredura Stride 8 (MEM-bound)</option>
+                    <option value="search">4. Busca Linear (Controle-bound)</option>
+                    <option value="data">5. Dependência de Dados (ALU)</option>
+                    <option value="lw">6. Dependência LW (Stall)</option>
+                    <option value="isa">7. Teste ISA Completo (Novas Ops)</option> </select>
                 
-                <button id="load-program" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                <button id="load-program" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
                     Carregar Programa
                 </button>
 
-                <h3 class="text-lg font-semibold mt-6 mb-3">Configurações da Cache (Placeholder)</h3>
+                <h3 class="text-lg font-semibold mt-6 mb-3">Configurações da Cache</h3>
                 <div class="space-y-2">
                     <div>
-                        <label for="l1i-latency" class="text-sm">Latência L1I:</label>
-                        <input type="number" id="l1i-latency" value="1" class="w-full p-1 bg-gray-700 rounded" disabled>
+                        <label for="l1i-latency" class="text-sm">Latência L1I (Hit):</label>
+                        <input type="number" id="l1i-latency" value="1" class="w-full p-1 bg-gray-700 rounded text-gray-100">
                     </div>
                     <div>
-                        <label for="l1d-latency" class="text-sm">Latência L1D:</label>
-                        <input type="number" id="l1d-latency" value="1" class="w-full p-1 bg-gray-700 rounded" disabled>
+                        <label for="l1d-latency" class="text-sm">Latência L1D (Hit):</label>
+                        <input type="number" id="l1d-latency" value="2" class="w-full p-1 bg-gray-700 rounded text-gray-100">
                     </div>
                     <div>
-                        <label for="miss-penalty" class="text-sm">Penalidade de Miss:</label>
-                        <input type="number" id="miss-penalty" value="10" class="w-full p-1 bg-gray-700 rounded" disabled>
+                        <label for="miss-penalty" class="text-sm">Penalidade de Miss (L1):</label>
+                        <input type="number" id="miss-penalty" value="10" class="w-full p-1 bg-gray-700 rounded text-gray-100">
                     </div>
                 </div>
             </div>
@@ -55,26 +71,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td class="font-bold py-1 px-1">IF (Busca)</td>
-                            <td id="pipeline-if" class="py-1 px-1">vazio</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold py-1 px-1">ID (Decod.)</td>
-                            <td id="pipeline-id" class="py-1 px-1">vazio</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold py-1 px-1">EX (Exec.)</td>
-                            <td id="pipeline-ex" class="py-1 px-1">vazio</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold py-1 px-1">MEM (Memória)</td>
-                            <td id="pipeline-mem" class="py-1 px-1">vazio</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold py-1 px-1">WB (Escrita)</td>
-                            <td id="pipeline-wb" class="py-1 px-1">vazio</td>
-                        </tr>
+                        <tr> <td class="font-bold py-1 px-1">IF (Busca)</td> <td id="pipeline-if" class="py-1 px-1">vazio</td> </tr>
+                        <tr> <td class="font-bold py-1 px-1">ID (Decod.)</td> <td id="pipeline-id" class="py-1 px-1">vazio</td> </tr>
+                        <tr> <td class="font-bold py-1 px-1">EX (Exec.)</td> <td id="pipeline-ex" class="py-1 px-1">vazio</td> </tr>
+                        <tr> <td class="font-bold py-1 px-1">MEM (Memória)</td> <td id="pipeline-mem" class="py-1 px-1">vazio</td> </tr>
+                        <tr> <td class="font-bold py-1 px-1">WB (Escrita)</td> <td id="pipeline-wb" class="py-1 px-1">vazio</td> </tr>
                     </tbody>
                 </table>
             </div>
@@ -82,34 +83,47 @@
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
                 <h2 class="text-xl font-semibold mb-4">Estado do Sistema</h2>
 
-                <h3 class="text-lg font-semibold mb-2">Métricas</h3>
-                <table class="w-full table-auto mb-4 font-mono">
-                    <tbody>
-                        <tr>
-                            <td class="py-1">PC:</td>
-                            <td id="metrics-pc" class="text-right">0</td>
-                        </tr>
-                        <tr>
-                            <td class="py-1">Ciclos:</td>
-                            <td id="metrics-cycles" class="text-right">0</td>
-                        </tr>
-                        <tr>
-                            <td class="py-1">Instruções:</td>
-                            <td id="metrics-instructions" class="text-right">0</td>
-                        </tr>
-                        <tr>
-                            <td class="py-1">CPI:</td>
-                            <td id="metrics-cpi" class="text-right">0.00</td>
-                        </tr>
-                        <tr class="border-t border-gray-600">
-                            <td class="py-1">Stalls (Dados):</td>
-                            <td id="metrics-stalls" class="text-right">0</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <h3 class="text-lg font-semibold mb-2">Registradores (x0-x31)</h3>
-                <div class="max-h-80 overflow-y-auto border border-gray-700 rounded">
+                <h3 class="text-lg font-semibold mb-2">Métricas de Simulação</h3>
+                <div class="max-h-80 overflow-y-auto border border-gray-700 rounded mb-4">
+                    <table class="w-full table-auto font-mono text-sm">
+                        <tbody id="metrics-table-body">
+                            <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Execução</td></tr>
+                            <tr><td class="py-1 px-2">PC:</td><td id="metrics-pc" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Ciclos:</td><td id="metrics-cycles" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Instruções:</td><td id="metrics-instructions" class="text-right px-2">0</td></tr>
+                            <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Stalls</td></tr>
+                            <tr><td class="py-1 px-2">Stalls (Dados):</td><td id="metrics-stalls" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Stalls (Cache):</td><td id="metrics-cache-stalls" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Flushes (Controle):</td><td id="metrics-flushes" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Desvios Tomados:</td><td id="metrics-taken" class="text-right px-2">0</td></tr>
+                            <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Desempenho (Final)</td></tr>
+                            <tr><td class="py-1 px-2">CPI:</td><td id="final-cpi" class="text-right px-2">0.00</td></tr>
+                            <tr><td class="py-1 px-2">IPC:</td><td id="final-ipc" class="text-right px-2">0.00</td></tr>
+                            <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Cache L1I (Final)</td></tr>
+                            <tr><td class="py-1 px-2">Acessos:</td><td id="final-l1i-access" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Hits:</td><td id="final-l1i-hits" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Misses:</td><td id="final-l1i-misses" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Miss Rate:</td><td id="final-l1i-missrate" class="text-right px-2">0.0%</td></tr>
+                            <tr><td class="py-1 px-2">AMAT:</td><td id="final-l1i-amat" class="text-right px-2">0.00</td></tr>
+                            <tr><td class="py-1 px-2">MPKI:</td><td id="final-l1i-mpki" class="text-right px-2">0.00</td></tr>
+                            <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Cache L1D (Final)</td></tr>
+                            <tr><td class="py-1 px-2">Acessos:</td><td id="final-l1d-access" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Hits:</td><td id="final-l1d-hits" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Misses:</td><td id="final-l1d-misses" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Miss Rate:</td><td id="final-l1d-missrate" class="text-right px-2">0.0%</td></tr>
+                            <tr><td class="py-1 px-2">AMAT:</td><td id="final-l1d-amat" class="text-right px-2">0.00</td></tr>
+                            <tr><td class="py-1 px-2">MPKI:</td><td id="final-l1d-mpki" class="text-right px-2">0.00</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 class="text-lg font-semibold mb-2">Distribuição de Ciclos</h3>
+                <div class="p-2 border border-gray-700 rounded">
+                    <canvas id="cycle-chart"></canvas>
+                </div>
+
+                <h3 class="text-lg font-semibold mt-4 mb-2">Registradores (x0-x31)</h3>
+                <div class="max-h-60 overflow-y-auto border border-gray-700 rounded">
                     <table class="w-full table-auto font-mono text-sm">
                         <thead class="bg-gray-700 sticky top-0">
                             <tr>
@@ -142,6 +156,61 @@
     </div>
 
     <script>
+        // --- CLASSE CACHE (Sem alterações) ---
+        class Cache {
+            constructor(name, size, associativity, blockSize, latency) {
+                this.name = name;
+                this.size = size;
+                this.associativity = associativity;
+                this.blockSize = blockSize;
+                this.latency = latency;
+                this.hits = 0;
+                this.misses = 0;
+                this.numSets = size / (blockSize * associativity);
+                if (!Number.isInteger(this.numSets) || this.numSets <= 0 || (this.numSets & (this.numSets - 1)) !== 0) {
+                    this.numSets = Math.max(1, 2**Math.floor(Math.log2(this.numSets)));
+                }
+                if (!Number.isInteger(blockSize) || blockSize <= 0 || (blockSize & (blockSize - 1)) !== 0) {
+                    blockSize = Math.max(1, 2**Math.floor(Math.log2(blockSize)));
+                }
+                this.offsetBits = Math.log2(blockSize);
+                this.indexBits = Math.log2(this.numSets);
+                this.tagBits = 32 - this.offsetBits - this.indexBits;
+                this.sets = new Array(this.numSets);
+                for (let i = 0; i < this.numSets; i++) {
+                    this.sets[i] = new Array(this.associativity);
+                    for (let j = 0; j < this.associativity; j++) {
+                        this.sets[i][j] = { valid: false, tag: null, lruCounter: 0 };
+                    }
+                }
+            }
+            access(address, missPenalty) {
+                const index = (address >> this.offsetBits) & ((1 << this.indexBits) - 1);
+                const tag = address >> (this.offsetBits + this.indexBits);
+                const targetSet = this.sets[index];
+                const accessTime = this.hits + this.misses + 1;
+                for (const block of targetSet) {
+                    if (block.valid && block.tag === tag) {
+                        this.hits++;
+                        block.lruCounter = accessTime;
+                        return { hit: true, latency: this.latency };
+                    }
+                }
+                this.misses++;
+                let lruBlock = targetSet[0];
+                for (let i = 1; i < this.associativity; i++) {
+                    if (targetSet[i].lruCounter < lruBlock.lruCounter) {
+                        lruBlock = targetSet[i];
+                    }
+                }
+                lruBlock.valid = true;
+                lruBlock.tag = tag;
+                lruBlock.lruCounter = accessTime;
+                return { hit: false, latency: this.latency + missPenalty };
+            }
+        }
+
+
         document.addEventListener('DOMContentLoaded', () => {
 
             const simulator = {
@@ -151,20 +220,119 @@
                 instructionMemory: [],
                 pc: 0,
 
-                // Estado do Pipeline (Latches)
-                pipelineStages: {
-                    IF_UI: null, 
-                    ID: null,    
-                    EX: null,    
-                    MEM: null,   
-                    WB: null,    
-                },
+                // Estado da Cache
+                l1iCache: null, l1dCache: null,
+                missPenalty: 10,
+                ifStallCycles: 0, memStallCycles: 0,
+
+                // Estado do Pipeline
+                pipelineStages: { IF_UI: null, ID: null, EX: null, MEM: null, WB: null },
 
                 // Métricas
-                metrics: {
-                    cycles: 0,
-                    instructions: 0,
-                    dataStalls: 0, // <-- NOVO
+                metrics: { cycles: 0, instructions: 0, dataStalls: 0, memStalls: 0, controlFlushes: 0, branchesTaken: 0 },
+
+                // --- ATUALIZADO: Programas de Benchmark ---
+                benchmarks: {
+                    'sum': `
+# 1. Somatório (ALU-bound)
+addi x1, x0, 10
+addi x2, x0, 0
+addi x3, x0, 0
+loop:
+addi x3, x3, 1
+add x2, x2, x3
+beq x1, x3, 2
+jal x0, -3
+end:
+`,
+                    'seq': `
+# 2. Varredura Sequencial (MEM-bound)
+addi x1, x0, 0
+addi x2, x0, 64
+loop:
+lw x3, 0(x1)
+addi x1, x1, 4
+beq x1, x2, 2
+jal x0, -3
+end:
+`,
+                    'stride': `
+# 3. Varredura Stride 8 (MEM-bound)
+addi x1, x0, 0
+addi x2, x0, 256
+loop:
+lw x3, 0(x1)
+addi x1, x1, 32
+beq x1, x2, 2
+jal x0, -3
+end:
+`,
+                    'search': `
+# 4. Busca Linear (Controle-bound)
+addi x1, x0, 1
+addi x2, x0, 2
+addi x3, x0, 5
+addi x4, x0, 8
+sw x1, 0(x0)
+sw x2, 4(x0)
+sw x3, 8(x0)
+sw x4, 12(x0)
+addi x5, x0, 5
+addi x6, x0, 0
+addi x7, x0, 16
+addi x10, x0, 0
+loop:
+lw x8, 0(x6)
+beq x8, x5, 4
+addi x6, x6, 4
+beq x6, x7, 3
+jal x0, -4
+found:
+addi x10, x0, 1
+end:
+`,
+                    'data': `
+# 5. Dependência de Dados (ALU)
+addi x1, x0, 10
+add x2, x1, x1
+add x3, x2, x2
+add x4, x3, x3
+add x5, x4, x4
+add x6, x5, x5
+add x7, x6, x6
+add x8, x7, x7
+`,
+                    'lw': `
+# 6. Dependência LW (Stall)
+lw x1, 0(x0)
+add x2, x1, x1
+lw x3, 4(x0)
+add x4, x3, x3
+lw x5, 8(x0)
+add x6, x5, x5
+lw x7, 12(x0)
+add x8, x7, x7
+`,
+                    'isa': `
+# 7. Teste ISA Completo (Novas Ops)
+# Testa and, or, xor, slt, bne, jalr
+addi x1, x0, 10
+addi x2, x0, 12
+and x3, x1, x2   # x3 = 8
+or  x4, x1, x2   # x4 = 14
+xor x5, x1, x2   # x5 = 6
+slt x6, x1, x2   # x6 = 1 (10 < 12)
+slt x7, x2, x1   # x7 = 0 (12 < 10)
+bne x1, x2, 2    # Desvio TOMADO (10 != 12)
+addi x8, x0, 1   # (pulado)
+addi x9, x0, 1   # (pulado)
+# Destino de bne:
+addi x10, x0, 44 # Endereço de "target"
+jalr x0, 0(x10)  # Salta para PC=44 (índice 11)
+addi x11, x0, 1  # (pulado)
+target:
+addi x12, x0, 12 # Fim da execução
+`
                 },
 
                 // Referências da UI
@@ -180,20 +348,37 @@
                         pc: document.getElementById('metrics-pc'),
                         cycles: document.getElementById('metrics-cycles'),
                         instructions: document.getElementById('metrics-instructions'),
-                        cpi: document.getElementById('metrics-cpi'),
-                        stalls: document.getElementById('metrics-stalls'), // <-- NOVO
+                        stalls: document.getElementById('metrics-stalls'),
+                        cacheStalls: document.getElementById('metrics-cache-stalls'),
+                        flushes: document.getElementById('metrics-flushes'),
+                        taken: document.getElementById('metrics-taken'),
+                    },
+                    finalMetrics: {
+                        cpi: document.getElementById('final-cpi'), ipc: document.getElementById('final-ipc'),
+                        l1i_access: document.getElementById('final-l1i-access'), l1i_hits: document.getElementById('final-l1i-hits'),
+                        l1i_misses: document.getElementById('final-l1i-misses'), l1i_missrate: document.getElementById('final-l1i-missrate'),
+                        l1i_amat: document.getElementById('final-l1i-amat'), l1i_mpki: document.getElementById('final-l1i-mpki'),
+                        l1d_access: document.getElementById('final-l1d-access'), l1d_hits: document.getElementById('final-l1d-hits'),
+                        l1d_misses: document.getElementById('final-l1d-misses'), l1d_missrate: document.getElementById('final-l1d-missrate'),
+                        l1d_amat: document.getElementById('final-l1d-amat'), l1d_mpki: document.getElementById('final-l1d-mpki'),
                     },
                     registersTableBody: document.getElementById('registers-table-body'),
                     buttons: {
-                        step: document.getElementById('btn-step'),
-                        run: document.getElementById('btn-run'),
-                        reset: document.getElementById('btn-reset'),
-                        loadProgram: document.getElementById('load-program'),
+                        step: document.getElementById('btn-step'), run: document.getElementById('btn-run'),
+                        reset: document.getElementById('btn-reset'), loadProgram: document.getElementById('load-program'),
                     },
                     codeInput: document.getElementById('code-input'),
+                    benchmarkSelect: document.getElementById('benchmark-select'),
+                    config: {
+                        l1i_latency: document.getElementById('l1i-latency'),
+                        l1d_latency: document.getElementById('l1d-latency'),
+                        miss_penalty: document.getElementById('miss-penalty'),
+                    },
+                    cycleChart: null,
+                    cycleChartCanvas: document.getElementById('cycle-chart'),
                 },
 
-                // --- FUNÇÕES DE INICIALIZAÇÃO E PARSER (sem alteração) ---
+                // --- FUNÇÕES DE INICIALIZAÇÃO E PARSER ---
                 init: function() {
                     console.log("Simulador iniciado.");
                     this.buildRegisterTable();
@@ -217,305 +402,366 @@
                     this.ui.buttons.run.addEventListener('click', this.run.bind(this));
                     this.ui.buttons.reset.addEventListener('click', this.reset.bind(this));
                     this.ui.buttons.loadProgram.addEventListener('click', this.loadProgram.bind(this));
+                    this.ui.benchmarkSelect.addEventListener('change', this.loadBenchmark.bind(this));
                 },
                 
-                // --- ATUALIZADO ---
                 reset: function() {
                     console.log("Resetando simulador...");
-                    this.registers.fill(0);
-                    this.dataMemory.fill(0);
-                    this.instructionMemory = [];
-                    this.pc = 0;
-                    
-                    this.pipelineStages = {
-                        IF_UI: null, ID: null, EX: null, MEM: null, WB: null,
-                    };
-                    
-                    // ATUALIZADO para incluir dataStalls
-                    this.metrics = { cycles: 0, instructions: 0, dataStalls: 0 };
-
+                    this.registers.fill(0); this.dataMemory.fill(0);
+                    this.instructionMemory = []; this.pc = 0;
+                    this.pipelineStages = { IF_UI: null, ID: null, EX: null, MEM: null, WB: null };
+                    this.metrics = { cycles: 0, instructions: 0, dataStalls: 0, memStalls: 0, controlFlushes: 0, branchesTaken: 0 };
+                    this.ifStallCycles = 0; this.memStallCycles = 0;
+                    const l1i_lat = parseInt(this.ui.config.l1i_latency.value) || 1;
+                    const l1d_lat = parseInt(this.ui.config.l1d_latency.value) || 1;
+                    this.missPenalty = parseInt(this.ui.config.miss_penalty.value) || 10;
+                    this.l1iCache = new Cache("L1I", 1024, 2, 16, l1i_lat);
+                    this.l1dCache = new Cache("L1D", 2048, 4, 16, l1d_lat);
+                    this.clearFinalMetricsUI();
                     this.updateUI();
+                    this.toggleUIControls(true);
                 },
+                
                 loadProgram: function() {
                     console.log("Carregando programa...");
                     this.reset();
                     const code = this.ui.codeInput.value;
                     this.parse(code);
                     console.log("Programa carregado:", this.instructionMemory);
-                    this.updateUI();
                 },
-                parseRegister: function(r) {
-                    if (!r) return NaN;
-                    return parseInt(r.replace('x', '').replace('r', ''));
+                
+                loadBenchmark: function(event) {
+                    const benchmarkKey = event.target.value;
+                    if (benchmarkKey && this.benchmarks[benchmarkKey]) {
+                        this.ui.codeInput.value = this.benchmarks[benchmarkKey].trim();
+                    } else {
+                        this.ui.codeInput.value = '';
+                    }
                 },
+
+                clearFinalMetricsUI: function() {
+                    if (this.ui.cycleChart) {
+                        this.ui.cycleChart.destroy();
+                        this.ui.cycleChart = null;
+                    }
+                    for (const key in this.ui.finalMetrics) {
+                        const el = this.ui.finalMetrics[key];
+                        if (el) el.textContent = '0.00';
+                    }
+                    if (this.ui.finalMetrics.l1i_missrate) this.ui.finalMetrics.l1i_missrate.textContent = '0.0%';
+                    if (this.ui.finalMetrics.l1d_missrate) this.ui.finalMetrics.l1d_missrate.textContent = '0.0%';
+                },
+
+                parseRegister: function(r) { return parseInt(r.replace('x', '').replace('r', '')); },
+                
+                // --- ATUALIZADO: parse() ---
                 parse: function(code) {
                     const lines = code.split('\n');
-                    
                     lines.forEach(line => {
                         let trimmedLine = line.split('#')[0].split('//')[0].trim();
                         if (!trimmedLine) return;
                         const parts = trimmedLine.replace(/,/g, '').replace(/\(/, ' ').replace(/\)/, '').split(/\s+/).filter(p => p);
                         if (parts.length === 0) return;
-
                         const op = parts[0].toLowerCase();
                         let inst = { op: op, line: trimmedLine };
-
                         try {
                             switch (op) {
-                                case 'add': case 'sub':
-                                    inst.rd = this.parseRegister(parts[1]);
-                                    inst.rs1 = this.parseRegister(parts[2]);
-                                    inst.rs2 = this.parseRegister(parts[3]);
-                                    break;
+                                // R-type: add, sub, and, or, xor, slt
+                                case 'add': case 'sub': case 'and': case 'or': case 'xor': case 'slt':
+                                    inst.rd = this.parseRegister(parts[1]); inst.rs1 = this.parseRegister(parts[2]); inst.rs2 = this.parseRegister(parts[3]); break;
+                                // I-type: addi
                                 case 'addi':
-                                    inst.rd = this.parseRegister(parts[1]);
-                                    inst.rs1 = this.parseRegister(parts[2]);
-                                    inst.imm = parseInt(parts[3]);
-                                    break;
+                                    inst.rd = this.parseRegister(parts[1]); inst.rs1 = this.parseRegister(parts[2]); inst.imm = parseInt(parts[3]); break;
+                                // I-type (Load): lw
                                 case 'lw':
-                                    inst.rd = this.parseRegister(parts[1]);
-                                    inst.imm = parseInt(parts[2]);
-                                    inst.rs1 = this.parseRegister(parts[3]);
-                                    break;
+                                    inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
+                                // I-type (jalr)
+                                case 'jalr':
+                                    inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
+                                // S-type: sw
                                 case 'sw':
-                                    inst.rs2 = this.parseRegister(parts[1]);
-                                    inst.imm = parseInt(parts[2]);
-                                    inst.rs1 = this.parseRegister(parts[3]);
-                                    break;
-                                case 'beq':
-                                    inst.rs1 = this.parseRegister(parts[1]);
-                                    inst.rs2 = this.parseRegister(parts[2]);
-                                    inst.imm = parseInt(parts[3]);
-                                    break;
+                                    inst.rs2 = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
+                                // B-type: beq, bne
+                                case 'beq': case 'bne':
+                                    inst.rs1 = this.parseRegister(parts[1]); inst.rs2 = this.parseRegister(parts[2]); inst.imm = parseInt(parts[3]); break;
+                                // J-type: jal
                                 case 'jal':
-                                    inst.rd = this.parseRegister(parts[1]);
-                                    inst.imm = parseInt(parts[2]);
-                                    break;
-                                default:
+                                    inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); break;
+                                default: 
                                     console.warn(`Instrução desconhecida ignorada: ${trimmedLine}`);
                                     return;
                             }
                             this.instructionMemory.push(inst);
-                        } catch (e) {
-                            console.error(`Erro ao parsear a linha: "${trimmedLine}"`, e);
-                        }
+                        } catch (e) { console.error(`Erro ao parsear a linha: "${trimmedLine}"`, e); }
                     });
                 },
 
-                // --- FUNÇÕES DO PIPELINE (SEM ALTERAÇÃO em WB, MEM, EX, IF) ---
-
+                // --- FUNÇÕES DO PIPELINE ---
                 doWB: function() {
-                    const inst = this.pipelineStages.WB; // Lê do latch MEM/WB
+                    const inst = this.pipelineStages.WB;
                     if (!inst) return;
-
                     const op = inst.op;
-                    if (op === 'add' || op === 'sub' || op === 'addi' || op === 'lw' || op === 'jal') {
+                    // --- ATUALIZADO: slt, and, or, xor, jalr escrevem em rd ---
+                    if (op === 'add' || op === 'sub' || op === 'addi' || op === 'lw' || op === 'jal' ||
+                        op === 'and' || op === 'or' || op === 'xor' || op === 'slt' || op === 'jalr') {
                         if (inst.rd > 0) {
                             this.registers[inst.rd] = inst.writeBackData;
                         }
                     }
-                    
                     this.metrics.instructions++;
                 },
-
                 doMEM: function() {
-                    const inst = this.pipelineStages.MEM; // Lê do latch EX/MEM
-                    this.pipelineStages.WB = inst;
-                    if (!inst) return;
-
+                    const inst = this.pipelineStages.MEM;
+                    if (!inst) { this.pipelineStages.WB = null; return false; }
                     const op = inst.op;
+                    if (op === 'lw' || op === 'sw') {
+                        const addr = inst.aluResult;
+                        const result = this.l1dCache.access(addr, this.missPenalty);
+                        if (!result.hit) {
+                            this.memStallCycles = result.latency - 1; this.metrics.memStalls++;
+                            this.pipelineStages.WB = null; return true;
+                        }
+                    }
+                    this.pipelineStages.WB = inst;
                     switch (op) {
                         case 'lw': {
                             const addr = inst.aluResult;
-                            const b1 = this.dataMemory[addr]     || 0;
-                            const b2 = this.dataMemory[addr + 1] || 0;
-                            const b3 = this.dataMemory[addr + 2] || 0;
-                            const b4 = this.dataMemory[addr + 3] || 0;
+                            const b1 = this.dataMemory[addr] || 0, b2 = this.dataMemory[addr + 1] || 0, b3 = this.dataMemory[addr + 2] || 0, b4 = this.dataMemory[addr + 3] || 0;
                             inst.writeBackData = (b4 << 24) | (b3 << 16) | (b2 << 8) | b1;
                             break;
                         }
                         case 'sw': {
-                            const addr = inst.aluResult;
-                            const data = inst.rs2Val;
-                            this.dataMemory[addr]     = data & 0xFF;
-                            this.dataMemory[addr + 1] = (data >> 8) & 0xFF;
-                            this.dataMemory[addr + 2] = (data >> 16) & 0xFF;
-                            this.dataMemory[addr + 3] = (data >> 24) & 0xFF;
+                            const addr = inst.aluResult, data = inst.rs2Val;
+                            this.dataMemory[addr] = data & 0xFF; this.dataMemory[addr + 1] = (data >> 8) & 0xFF; this.dataMemory[addr + 2] = (data >> 16) & 0xFF; this.dataMemory[addr + 3] = (data >> 24) & 0xFF;
                             break;
                         }
                         default:
-                            if (inst.aluResult !== undefined) {
-                                inst.writeBackData = inst.aluResult;
-                            }
+                            if (inst.aluResult !== undefined) inst.writeBackData = inst.aluResult;
                             break;
                     }
+                    return false;
                 },
-
+                
+                // --- ATUALIZADO: doEX() ---
                 doEX: function() {
-                    const inst = this.pipelineStages.EX; // Lê do latch ID/EX
+                    const inst = this.pipelineStages.EX;
                     this.pipelineStages.MEM = inst;
                     if (!inst) return;
-
+                    const instMEM = this.pipelineStages.MEM, instWB = this.pipelineStages.WB;
+                    let rs1Val = inst.rs1Val, rs2Val = inst.rs2Val;
+                    // Lógica de Forwarding (sem alteração)
+                    if (instWB && instWB.rd > 0 && instWB.writeBackData !== undefined) {
+                        if (instWB.rd === inst.rs1) rs1Val = instWB.writeBackData;
+                        if (instWB.rd === inst.rs2) rs2Val = instWB.writeBackData;
+                    }
+                    if (instMEM && instMEM.rd > 0 && instMEM.aluResult !== undefined && instMEM.op !== 'lw') {
+                        if (instMEM.rd === inst.rs1 && !(instWB && instWB.rd === inst.rs1)) rs1Val = instMEM.aluResult;
+                        if (instMEM.rd === inst.rs2 && !(instWB && instWB.rd === inst.rs2)) rs2Val = instMEM.aluResult;
+                    }
+                    inst.rs1Val = rs1Val; inst.rs2Val = rs2Val;
+                    
+                    // Lógica da ULA (atualizada)
                     const op = inst.op;
                     switch (op) {
-                        case 'add':
-                            inst.aluResult = (inst.rs1Val + inst.rs2Val) | 0;
-                            break;
-                        case 'sub':
-                            inst.aluResult = (inst.rs1Val - inst.rs2Val) | 0;
-                            break;
-                        case 'addi':
-                            inst.aluResult = (inst.rs1Val + inst.imm) | 0;
-                            break;
-                        case 'lw': case 'sw':
-                            inst.aluResult = (inst.rs1Val + inst.imm) | 0;
-                            break;
-                        case 'jal':
-                            inst.aluResult = inst.pc + 1; 
-                            break;
-                        case 'beq':
+                        // Originais
+                        case 'add': inst.aluResult = (rs1Val + rs2Val) | 0; break;
+                        case 'sub': inst.aluResult = (rs1Val - rs2Val) | 0; break;
+                        case 'addi': inst.aluResult = (rs1Val + inst.imm) | 0; break;
+                        case 'lw': case 'sw': inst.aluResult = (rs1Val + inst.imm) | 0; break;
+                        
+                        // Novas R-type
+                        case 'and': inst.aluResult = (rs1Val & rs2Val) | 0; break;
+                        case 'or':  inst.aluResult = (rs1Val | rs2Val) | 0; break;
+                        case 'xor': inst.aluResult = (rs1Val ^ rs2Val) | 0; break;
+                        case 'slt': inst.aluResult = (rs1Val < rs2Val) ? 1 : 0; break;
+
+                        // Desvios
+                        case 'beq': if (rs1Val === rs2Val) this.handleBranchTaken(inst.pc + inst.imm); break;
+                        case 'bne': if (rs1Val !== rs2Val) this.handleBranchTaken(inst.pc + inst.imm); break; // NOVO
+                        case 'jal': inst.aluResult = inst.pc + 1; this.handleBranchTaken(inst.pc + inst.imm); break;
+                        case 'jalr': // NOVO
+                            inst.aluResult = inst.pc + 1; // Valor de link (PC+1)
+                            const targetAddr = (rs1Val + inst.imm) | 0; // Endereço absoluto
+                            const targetPC = targetAddr / 4; // Converte endereço de byte para índice de PC
+                            this.handleBranchTaken(targetPC); // Salta para o índice
                             break;
                     }
                 },
-
-                // --- ATUALIZADO: doID agora detecta hazards ---
-                /**
-                 * Estágio ID (Instruction Decode)
-                 * Detecta hazard "load-use" e sinaliza stall se necessário.
-                 * @returns {boolean} true se um stall deve ocorrer, false caso contrário.
-                 */
+                handleBranchTaken: function(targetPC) {
+                    console.log(`!!! DESVIO TOMADO: Flush IF/ID. Novo PC: ${targetPC} !!!`);
+                    this.metrics.branchesTaken++; this.metrics.controlFlushes++;
+                    this.pipelineStages.ID = null; this.pipelineStages.IF_UI = null;
+                    this.pc = targetPC;
+                },
                 doID: function() {
-                    const instID = this.pipelineStages.ID; // Lê do latch IF/ID
-                    const instEX = this.pipelineStages.EX; // Lê o que está no latch ID/EX
-
-                    // --- Detecção de Hazard (Load-Use) ---
-                    // Se a instrução em EX é 'lw' E
-                    // o registrador de destino (rd) dela é usado (rs1 ou rs2) pela instrução em ID
-                    if (instID && instEX && instEX.op === 'lw') {
-                        // O rd x0 nunca pode causar um hazard
-                        if (instEX.rd !== 0) { 
-                            const idUsesRs1 = (instID.rs1 !== undefined) && (instID.rs1 === instEX.rd);
-                            const idUsesRs2 = (instID.rs2 !== undefined) && (instID.rs2 === instEX.rd);
-
-                            if (idUsesRs1 || idUsesRs2) {
-                                console.log(`!!! HAZARD LOAD-USE DETECTADO: ID ( ${instID.line} ) usa rd=${instEX.rd} de EX ( ${instEX.line} ) !!!`);
-                                
-                                // AÇÃO DE STALL (BOLHA):
-                                // 1. Inserir uma bolha (null) no latch ID/EX
-                                this.pipelineStages.EX = null; 
-                                
-                                // 2. Sinalizar ao 'step' para *não* chamar 'doIF'
-                                // O latch IF/ID *não* é atualizado,
-                                // então 'doID' rodará a mesma instrução 'instID' no próximo ciclo.
-                                return true; // true = STALL
-                            }
+                    const instID = this.pipelineStages.ID, instEX = this.pipelineStages.EX;
+                    if (instID && instEX && instEX.op === 'lw' && instEX.rd !== 0) { 
+                        // --- ATUALIZADO: jalr também usa rs1 ---
+                        const idUsesRs1 = (instID.rs1 !== undefined) && (instID.rs1 === instEX.rd);
+                        const idUsesRs2 = (instID.rs2 !== undefined) && (instID.rs2 === instEX.rd);
+                        
+                        if (idUsesRs1 || idUsesRs2) {
+                            this.pipelineStages.EX = null; return true;
                         }
                     }
-
-                    // --- Sem Hazard: Execução Normal ---
-                    
-                    // Passa a instrução atual (ou null) para o próximo estágio (EX)
                     this.pipelineStages.EX = instID;
-                    if (!instID) {
-                        return false; // Sem stall (pipeline vazio)
-                    }
-
-                    // Decodifica: Lê valores dos registradores
-                    if (instID.rs1 !== undefined) {
-                        instID.rs1Val = (instID.rs1 === 0) ? 0 : this.registers[instID.rs1];
-                    }
-                    if (instID.rs2 !== undefined) {
-                        instID.rs2Val = (instID.rs2 === 0) ? 0 : this.registers[instID.rs2];
-                    }
-
-                    return false; // false = NO STALL
+                    if (!instID) return false; 
+                    if (instID.rs1 !== undefined) instID.rs1Val = (instID.rs1 === 0) ? 0 : this.registers[instID.rs1];
+                    if (instID.rs2 !== undefined) instID.rs2Val = (instID.rs2 === 0) ? 0 : this.registers[instID.rs2];
+                    return false;
                 },
-
                 doIF: function() {
-                    // Verifica se o PC está dentro dos limites da memória de instruções
-                    if (this.pc < this.instructionMemory.length) {
-                        const baseInst = this.instructionMemory[this.pc];
-                        const newInst = { ...baseInst };
-                        newInst.pc = this.pc;
-
-                        this.pipelineStages.ID = newInst;
-                        this.pipelineStages.IF_UI = newInst.line;
-                        
-                        // Incrementa o PC
-                        this.pc++;
-                    } else {
-                        // Não há mais instruções
-                        this.pipelineStages.ID = null;
-                        this.pipelineStages.IF_UI = null;
+                    if (this.pc >= this.instructionMemory.length) {
+                        this.pipelineStages.ID = null; this.pipelineStages.IF_UI = null;
+                        return false;
                     }
+                    const instAddr = this.pc * 4; 
+                    const result = this.l1iCache.access(instAddr, this.missPenalty);
+                    if (!result.hit) {
+                        this.ifStallCycles = result.latency - 1; this.metrics.memStalls++;
+                        this.pipelineStages.ID = null; this.pipelineStages.IF_UI = '(cache miss)';
+                        return true;
+                    }
+                    const baseInst = this.instructionMemory[this.pc];
+                    const newInst = { ...baseInst };
+                    newInst.pc = this.pc;
+                    this.pipelineStages.ID = newInst; this.pipelineStages.IF_UI = newInst.line;
+                    this.pc++;
+                    return false;
                 },
 
-                // --- ATUALIZADO: step() agora usa a lógica de stall ---
-                /**
-                 * Executa um único ciclo de clock
-                 */
+                // --- FUNÇÕES DE EXECUÇÃO (Sem alterações) ---
                 step: function() {
-                    console.log(`--- Ciclo ${this.metrics.cycles + 1} ---`);
-                    
-                    // Executa os estágios em ORDEM REVERSA
-                    this.doWB();
-                    this.doMEM();
-                    this.doEX();
-                    
-                    // doID() é agora a unidade de controle de hazard.
-                    // Ela retorna 'true' se um stall for necessário.
-                    const stallDetected = this.doID();
-
-                    if (stallDetected) {
-                        // STALL!
-                        console.log(">>> STALL: Inserindo bolha. PC e IF congelados.");
-                        // O PC não avança.
-                        // O latch IF/ID (pipelineStages.ID) não é atualizado.
-                        this.metrics.dataStalls++;
-                    } else {
-                        // Pipeline flui normalmente
-                        this.doIF();
-                    }
-
-                    // Atualiza métricas e UI
                     this.metrics.cycles++;
+                    this.doWB();
+                    if (this.memStallCycles > 0) {
+                        this.memStallCycles--; this.metrics.memStalls++;
+                        this.pipelineStages.IF_UI = '(mem stall)';
+                        this.updateUI(); return;
+                    }
+                    const memStalledThisCycle = this.doMEM();
+                    if (memStalledThisCycle) {
+                        this.pipelineStages.IF_UI = '(mem stall)';
+                        this.updateUI(); return;
+                    }
+                    this.doEX();
+                    const dataStalledThisCycle = this.doID();
+                    if (dataStalledThisCycle) {
+                        this.metrics.dataStalls++;
+                        this.pipelineStages.IF_UI = '(data stall)';
+                        this.updateUI(); return;
+                    }
+                    if (this.ifStallCycles > 0) {
+                        this.ifStallCycles--; this.metrics.memStalls++;
+                        this.pipelineStages.ID = null; this.pipelineStages.IF_UI = '(cache miss)';
+                        this.updateUI(); return;
+                    }
+                    this.doIF();
                     this.updateUI();
                 },
-
+                isPipelineEmpty: function() {
+                    return !this.pipelineStages.ID && !this.pipelineStages.EX && !this.pipelineStages.MEM && !this.pipelineStages.WB;
+                },
+                toggleUIControls: function(enabled) {
+                    this.ui.buttons.step.disabled = !enabled;
+                    this.ui.buttons.run.disabled = !enabled;
+                    this.ui.buttons.reset.disabled = !enabled;
+                    this.ui.buttons.loadProgram.disabled = !enabled;
+                },
                 run: function() {
                     console.log("Executando simulação completa...");
-                    alert("Função 'Executar (Completo)' ainda não implementada.");
+                    this.toggleUIControls(false);
+                    let maxCycles = 50000;
+                    while (this.metrics.cycles < maxCycles) {
+                        if (this.pc >= this.instructionMemory.length && this.isPipelineEmpty()) {
+                            console.log(`Simulação concluída em ${this.metrics.cycles} ciclos.`);
+                            this.metrics.cycles--; // Ajusta o ciclo extra
+                            break;
+                        }
+                        this.step();
+                    }
+                    if (this.metrics.cycles >= maxCycles) {
+                        console.warn("Simulação parada: Limite de ciclos atingido.");
+                    }
+                    this.calculateFinalMetrics();
+                    this.toggleUIControls(true);
                 },
 
-                // --- ATUALIZADO: updateUI() mostra os stalls ---
+                // --- FUNÇÕES DE MÉTRICAS E UI (Sem alterações) ---
+                calculateFinalMetrics: function() {
+                    const m = this.metrics;
+                    const cpi = (m.instructions > 0) ? (m.cycles / m.instructions) : 0;
+                    const ipc = (m.cycles > 0) ? (m.instructions / m.cycles) : 0;
+                    
+                    const l1i_a = this.l1iCache.hits + this.l1iCache.misses;
+                    const l1i_mr = (l1i_a > 0) ? (this.l1iCache.misses / l1i_a) : 0;
+                    const l1i_amat = this.l1iCache.latency + (l1i_mr * this.missPenalty);
+                    const l1i_mpki = (m.instructions > 0) ? (this.l1iCache.misses * 1000 / m.instructions) : 0;
+                    
+                    const l1d_a = this.l1dCache.hits + this.l1dCache.misses;
+                    const l1d_mr = (l1d_a > 0) ? (this.l1dCache.misses / l1d_a) : 0;
+                    const l1d_amat = this.l1dCache.latency + (l1d_mr * this.missPenalty);
+                    const l1d_mpki = (m.instructions > 0) ? (this.l1dCache.misses * 1000 / m.instructions) : 0;
+
+                    const f = this.ui.finalMetrics;
+                    f.cpi.textContent = cpi.toFixed(3);
+                    f.ipc.textContent = ipc.toFixed(3);
+                    f.l1i_access.textContent = l1i_a; f.l1i_hits.textContent = this.l1iCache.hits; f.l1i_misses.textContent = this.l1iCache.misses;
+                    f.l1i_missrate.textContent = (l1i_mr * 100).toFixed(2) + '%';
+                    f.l1i_amat.textContent = l1i_amat.toFixed(2);
+                    f.l1i_mpki.textContent = l1i_mpki.toFixed(2);
+                    f.l1d_access.textContent = l1d_a; f.l1d_hits.textContent = this.l1dCache.hits; f.l1d_misses.textContent = this.l1dCache.misses;
+                    f.l1d_missrate.textContent = (l1d_mr * 100).toFixed(2) + '%';
+                    f.l1d_amat.textContent = l1d_amat.toFixed(2);
+                    f.l1d_mpki.textContent = l1d_mpki.toFixed(2);
+
+                    if (this.ui.cycleChart) { this.ui.cycleChart.destroy(); }
+                    const totalStalls = m.dataStalls + m.memStalls + m.controlFlushes;
+                    // Evita ciclos úteis negativos se a simulação for muito curta
+                    const usefulCycles = Math.max(0, m.cycles - totalStalls);
+                    const ctx = this.ui.cycleChartCanvas.getContext('2d');
+                    this.ui.cycleChart = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Execução Útil', 'Stalls (Dados)', 'Stalls (Cache)', 'Flushes (Controle)'],
+                            datasets: [{
+                                data: [usefulCycles, m.dataStalls, m.memStalls, m.controlFlushes],
+                                backgroundColor: ['#16a34a', '#eab308', '#ea580c', '#dc2626'],
+                                borderColor: '#374151',
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { position: 'top', labels: { color: '#e5e7eb' } },
+                                tooltip: {
+                                    enabled: true, backgroundColor: '#111827', titleColor: '#e5e7eb',
+                                    bodyColor: '#e5e7eb', borderColor: '#4b5563', borderWidth: 1,
+                                }
+                            }
+                        }
+                    });
+                },
                 updateUI: function() {
                     const getLine = (stage) => this.pipelineStages[stage]?.line ?? 'vazio';
-
-                    // 1. Atualizar Pipeline
-                    // (IF_UI é atualizado por doIF, os outros são os latches)
                     this.ui.pipeline.if.textContent = this.pipelineStages.IF_UI ?? 'vazio'; 
                     this.ui.pipeline.id.textContent = getLine('ID');
                     this.ui.pipeline.ex.textContent = getLine('EX');
                     this.ui.pipeline.mem.textContent = getLine('MEM');
                     this.ui.pipeline.wb.textContent = getLine('WB');
-
-                    // 2. Atualizar Registradores
                     for (let i = 0; i < 32; i++) {
                         const val = this.registers[i];
                         const hexVal = '0x' + ((val | 0) >>> 0).toString(16).padStart(8, '0');
                         document.getElementById(`reg-hex-${i}`).textContent = hexVal;
                         document.getElementById(`reg-dec-${i}`).textContent = val | 0;
                     }
-
-                    // 3. Atualizar Métricas
                     this.ui.metrics.pc.textContent = this.pc;
                     this.ui.metrics.cycles.textContent = this.metrics.cycles;
                     this.ui.metrics.instructions.textContent = this.metrics.instructions;
-                    this.ui.metrics.stalls.textContent = this.metrics.dataStalls; // <-- NOVO
-                    
-                    const cpi = (this.metrics.instructions > 0) ? 
-                                (this.metrics.cycles / this.metrics.instructions) : 0;
-                    this.ui.metrics.cpi.textContent = cpi.toFixed(2);
+                    this.ui.metrics.stalls.textContent = this.metrics.dataStalls;
+                    this.ui.metrics.cacheStalls.textContent = this.metrics.memStalls;
+                    this.ui.metrics.flushes.textContent = this.metrics.controlFlushes;
+                    this.ui.metrics.taken.textContent = this.metrics.branchesTaken;
                 }
             };
 
