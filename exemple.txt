@@ -1,0 +1,27 @@
+addi x1, x0, 10
+addi x2, x0, 20
+add x3, x1, x2  ; Resolvido por Forwarding
+sub x4, x3, x1  ; Resolvido por Forwarding
+beq x1, x2, 2   ; Desvio NÃO tomado
+beq x1, x1, 2   ; Desvio TOMADO (causa flush)
+nop             ; (Será "flushed")
+addi x5, x0, 5
+lw x6, 4(x0)
+add x7, x6, x1  ; Causa 1 ciclo de STALL
+jal x0, 2       ; Salto incondicional (causa flush)
+nop             ; (Será "flushed")
+addi x8, x0, 8
+
+addi x1, x0, 10
+addi x2, x0, 20
+add x3, x1, x2 
+sub x4, x3, x1 
+beq x1, x2, 2  
+beq x1, x1, 2  
+nop            
+addi x5, x0, 5
+lw x6, 4(x0)
+add x7, x6, x1 
+jal x0, 2     
+nop           
+addi x8, x0, 8
