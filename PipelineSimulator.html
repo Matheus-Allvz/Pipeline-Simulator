@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Pipeline e Cache (RV32I)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilo para fontes monoespaçadas, úteis para código e registradores */
+        .font-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <div class="container mx-auto p-4 max-w-7xl">
+        <h1 class="text-3xl font-bold text-center mb-6">Simulador de Pipeline e Cache (RV32I)</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Configuração</h2>
+                
+                <label for="code-input" class="block mb-2 font-medium">Código Assembly (RV32I):</label>
+                <textarea id="code-input" rows="10" class="w-full p-2 bg-gray-900 text-gray-100 rounded border border-gray-700 font-mono" placeholder="Cole seu código aqui...&#10;ex:&#10;addi x1, x0, 10&#10;addi x2, x0, 20&#10;add x3, x1, x2"></textarea>
+                
+                <button id="load-program" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    Carregar Programa
+                </button>
+
+                <h3 class="text-lg font-semibold mt-6 mb-3">Configurações da Cache (Placeholder)</h3>
+                <div class="space-y-2">
+                    <div>
+                        <label for="l1i-latency" class="text-sm">Latência L1I:</label>
+                        <input type="number" id="l1i-latency" value="1" class="w-full p-1 bg-gray-700 rounded" disabled>
+                    </div>
+                    <div>
+                        <label for="l1d-latency" class="text-sm">Latência L1D:</label>
+                        <input type="number" id="l1d-latency" value="1" class="w-full p-1 bg-gray-700 rounded" disabled>
+                    </div>
+                    <div>
+                        <label for="miss-penalty" class="text-sm">Penalidade de Miss:</label>
+                        <input type="number" id="miss-penalty" value="10" class="w-full p-1 bg-gray-700 rounded" disabled>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Estado do Pipeline</h2>
+                <table class="w-full table-auto font-mono">
+                    <thead class="border-b border-gray-600">
+                        <tr>
+                            <th class="text-left py-2 px-1">Estágio</th>
+                            <th class="text-left py-2 px-1">Instrução</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="font-bold py-1 px-1">IF (Busca)</td>
+                            <td id="pipeline-if" class="py-1 px-1">vazio</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold py-1 px-1">ID (Decod.)</td>
+                            <td id="pipeline-id" class="py-1 px-1">vazio</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold py-1 px-1">EX (Exec.)</td>
+                            <td id="pipeline-ex" class="py-1 px-1">vazio</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold py-1 px-1">MEM (Memória)</td>
+                            <td id="pipeline-mem" class="py-1 px-1">vazio</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold py-1 px-1">WB (Escrita)</td>
+                            <td id="pipeline-wb" class="py-1 px-1">vazio</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Estado do Sistema</h2>
+
+                <h3 class="text-lg font-semibold mb-2">Métricas</h3>
+                <table class="w-full table-auto mb-4 font-mono">
+                    <tbody>
+                        <tr>
+                            <td class="py-1">Ciclos:</td>
+                            <td id="metrics-cycles" class="text-right">0</td>
+                        </tr>
+                        <tr>
+                            <td class="py-1">Instruções:</td>
+                            <td id="metrics-instructions" class="text-right">0</td>
+                        </tr>
+                        <tr>
+                            <td class="py-1">CPI:</td>
+                            <td id="metrics-cpi" class="text-right">0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3 class="text-lg font-semibold mb-2">Registradores (x0-x31)</h3>
+                <div class="max-h-80 overflow-y-auto border border-gray-700 rounded">
+                    <table class="w-full table-auto font-mono text-sm">
+                        <thead class="bg-gray-700 sticky top-0">
+                            <tr>
+                                <th class="text-left py-1 px-2">Reg</th>
+                                <th class="text-left py-1 px-2">Valor (Hex)</th>
+                                <th class="text-left py-1 px-2">Valor (Dec)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registers-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mt-6 p-4 bg-gray-800 rounded-lg shadow-lg text-center">
+            <h2 class="text-xl font-semibold mb-4">Controles</h2>
+            <button id="btn-step" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded mr-2">
+                Executar (Cycle)
+            </button>
+            <button id="btn-run" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded mr-2">
+                Executar (Completo)
+            </button>
+            <button id="btn-reset" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded">
+                Resetar
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Definição do objeto principal do simulador
+            const simulator = {
+                // Estado do Sistema
+                registers: new Array(32).fill(0),
+                memory: new Uint8Array(1024), // 1KB de memória
+                pc: 0,
+
+                // Estado do Pipeline
+                pipelineStages: {
+                    IF: null, // Pode conter a instrução (string) ou um objeto
+                    ID: null,
+                    EX: null,
+                    MEM: null,
+                    WB: null,
+                },
+
+                // Métricas
+                metrics: {
+                    cycles: 0,
+                    instructions: 0,
+                },
+
+                // Referências da UI (para não buscar no DOM toda hora)
+                ui: {
+                    pipeline: {
+                        if: document.getElementById('pipeline-if'),
+                        id: document.getElementById('pipeline-id'),
+                        ex: document.getElementById('pipeline-ex'),
+                        mem: document.getElementById('pipeline-mem'),
+                        wb: document.getElementById('pipeline-wb'),
+                    },
+                    metrics: {
+                        cycles: document.getElementById('metrics-cycles'),
+                        instructions: document.getElementById('metrics-instructions'),
+                        cpi: document.getElementById('metrics-cpi'),
+                    },
+                    registersTableBody: document.getElementById('registers-table-body'),
+                    buttons: {
+                        step: document.getElementById('btn-step'),
+                        run: document.getElementById('btn-run'),
+                        reset: document.getElementById('btn-reset'),
+                    }
+                },
+
+                // Função de Inicialização
+                init: function() {
+                    console.log("Simulador iniciado.");
+                    this.buildRegisterTable(); // Constrói a tabela de registradores na UI
+                    this.reset(); // Define o estado inicial e atualiza a UI
+                    this.setupEventListeners();
+                },
+
+                // Constrói a tabela de registradores (só precisa rodar uma vez)
+                buildRegisterTable: function() {
+                    let html = '';
+                    for (let i = 0; i < 32; i++) {
+                        html += `
+                            <tr class="border-t border-gray-700 hover:bg-gray-700">
+                                <td class="py-1 px-2 font-bold">x${i}</td>
+                                <td class="py-1 px-2" id="reg-hex-${i}">0x00000000</td>
+                                <td class="py-1 px-2" id="reg-dec-${i}">0</td>
+                            </tr>`;
+                    }
+                    this.ui.registersTableBody.innerHTML = html;
+                },
+
+                // Configura os botões
+                setupEventListeners: function() {
+                    // Usamos .bind(this) para garantir que o 'this' dentro das funções
+                    // ainda se refira ao objeto 'simulator'
+                    this.ui.buttons.step.addEventListener('click', this.step.bind(this));
+                    this.ui.buttons.run.addEventListener('click', this.run.bind(this));
+                    this.ui.buttons.reset.addEventListener('click', this.reset.bind(this));
+                },
+
+                // Reseta o simulador para o estado inicial
+                reset: function() {
+                    console.log("Resetando simulador...");
+                    this.registers.fill(0);
+                    this.memory.fill(0); // Limpa a memória
+                    this.pc = 0;
+                    
+                    this.pipelineStages = {
+                        IF: null,
+                        ID: null,
+                        EX: null,
+                        MEM: null,
+                        WB: null,
+                    };
+                    
+                    this.metrics = {
+                        cycles: 0,
+                        instructions: 0,
+                    };
+
+                    this.updateUI();
+                },
+
+                // Executa um único ciclo de clock
+                step: function() {
+                    console.log("Executando 1 ciclo (step)...");
+                    
+                    // Lógica de simulação (ainda placeholder)
+                    // No futuro, a lógica do pipeline virá aqui (mover estágios, etc.)
+                    
+                    // Por enquanto, apenas incrementa o ciclo
+                    this.metrics.cycles++;
+                    
+                    // Se o estágio WB tiver algo, consideramos uma instrução concluída
+                    if (this.pipelineStages.WB) {
+                        this.metrics.instructions++;
+                        // Lógica de placeholder: apenas "consome" a instrução
+                        this.pipelineStages.WB = null; 
+                    }
+
+                    // Placeholder: Apenas para mostrar a UI mudando
+                    // Vamos simular uma instrução entrando
+                    if (this.metrics.cycles === 1) {
+                        this.pipelineStages.IF = "addi x1, x0, 10";
+                    } else if (this.metrics.cycles === 2) {
+                        this.pipelineStages.ID = this.pipelineStages.IF;
+                        this.pipelineStages.IF = "addi x2, x0, 20";
+                    }
+
+                    this.updateUI();
+                },
+
+                // Executa a simulação completa (ainda placeholder)
+                run: function() {
+                    console.log("Executando simulação completa...");
+                    // No futuro, isso será um loop que chama 'step()' até
+                    // que o programa termine (ex: instrução 'ebreak' ou 'ecall')
+                    alert("Função 'Executar (Completo)' ainda não implementada.");
+                },
+
+                // Atualiza toda a UI com base no estado atual do 'simulator'
+                updateUI: function() {
+                    // 1. Atualizar Pipeline
+                    this.ui.pipeline.if.textContent = this.pipelineStages.IF ?? 'vazio';
+                    this.ui.pipeline.id.textContent = this.pipelineStages.ID ?? 'vazio';
+                    this.ui.pipeline.ex.textContent = this.pipelineStages.EX ?? 'vazio';
+                    this.ui.pipeline.mem.textContent = this.pipelineStages.MEM ?? 'vazio';
+                    this.ui.pipeline.wb.textContent = this.pipelineStages.WB ?? 'vazio';
+
+                    // 2. Atualizar Registradores
+                    for (let i = 0; i < 32; i++) {
+                        const val = this.registers[i];
+                        // Converte para Hex (32-bit, 8 dígitos hex) e garante o '0x'
+                        const hexVal = '0x' + (val >>> 0).toString(16).padStart(8, '0');
+                        
+                        document.getElementById(`reg-hex-${i}`).textContent = hexVal;
+                        document.getElementById(`reg-dec-${i}`).textContent = val; // Valor decimal
+                    }
+
+                    // 3. Atualizar Métricas
+                    this.ui.metrics.cycles.textContent = this.metrics.cycles;
+                    this.ui.metrics.instructions.textContent = this.metrics.instructions;
+                    
+                    const cpi = (this.metrics.instructions > 0) ? 
+                                (this.metrics.cycles / this.metrics.instructions) : 0;
+                    this.ui.metrics.cpi.textContent = cpi.toFixed(2);
+                }
+            };
+
+            // Inicia o simulador ao carregar a página
+            simulator.init();
+        });
+    </script>
+
+</body>
+</html>
