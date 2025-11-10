@@ -38,7 +38,8 @@
                     <option value="search">4. Busca Linear (Controle-bound)</option>
                     <option value="data">5. Dependência de Dados (ALU)</option>
                     <option value="lw">6. Dependência LW (Stall)</option>
-                    <option value="isa">7. Teste ISA Completo (Novas Ops)</option> </select>
+                    <option value="isa">7. Teste ISA Completo (Novas Ops)</option>
+                </select>
                 
                 <button id="load-program" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
                     Carregar Programa
@@ -65,10 +66,7 @@
                 <h2 class="text-xl font-semibold mb-4">Estado do Pipeline</h2>
                 <table class="w-full table-auto font-mono">
                     <thead class="border-b border-gray-600">
-                        <tr>
-                            <th class="text-left py-2 px-1">Estágio</th>
-                            <th class="text-left py-2 px-1">Instrução</th>
-                        </tr>
+                        <tr> <th class="text-left py-2 px-1">Estágio</th> <th class="text-left py-2 px-1">Instrução</th> </tr>
                     </thead>
                     <tbody>
                         <tr> <td class="font-bold py-1 px-1">IF (Busca)</td> <td id="pipeline-if" class="py-1 px-1">vazio</td> </tr>
@@ -93,7 +91,8 @@
                             <tr><td class="py-1 px-2">Instruções:</td><td id="metrics-instructions" class="text-right px-2">0</td></tr>
                             <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Stalls</td></tr>
                             <tr><td class="py-1 px-2">Stalls (Dados):</td><td id="metrics-stalls" class="text-right px-2">0</td></tr>
-                            <tr><td class="py-1 px-2">Stalls (Cache):</td><td id="metrics-cache-stalls" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Stalls (L1I):</td><td id="metrics-l1i-stalls" class="text-right px-2">0</td></tr>
+                            <tr><td class="py-1 px-2">Stalls (L1D):</td><td id="metrics-l1d-stalls" class="text-right px-2">0</td></tr>
                             <tr><td class="py-1 px-2">Flushes (Controle):</td><td id="metrics-flushes" class="text-right px-2">0</td></tr>
                             <tr><td class="py-1 px-2">Desvios Tomados:</td><td id="metrics-taken" class="text-right px-2">0</td></tr>
                             <tr class="bg-gray-700"><td colspan="2" class="py-1 px-2 font-semibold">Desempenho (Final)</td></tr>
@@ -116,28 +115,18 @@
                         </tbody>
                     </table>
                 </div>
-
-                <h3 class="text-lg font-semibold mb-2">Distribuição de Ciclos</h3>
-                <div class="p-2 border border-gray-700 rounded">
-                    <canvas id="cycle-chart"></canvas>
-                </div>
-
+                
                 <h3 class="text-lg font-semibold mt-4 mb-2">Registradores (x0-x31)</h3>
                 <div class="max-h-60 overflow-y-auto border border-gray-700 rounded">
                     <table class="w-full table-auto font-mono text-sm">
                         <thead class="bg-gray-700 sticky top-0">
-                            <tr>
-                                <th class="text-left py-1 px-2">Reg</th>
-                                <th class="text-left py-1 px-2">Valor (Hex)</th>
-                                <th class="text-left py-1 px-2">Valor (Dec)</th>
-                            </tr>
+                            <tr> <th class="text-left py-1 px-2">Reg</th> <th class="text-left py-1 px-2">Valor (Hex)</th> <th class="text-left py-1 px-2">Valor (Dec)</th> </tr>
                         </thead>
                         <tbody id="registers-table-body">
                             </tbody>
                     </table>
                 </div>
             </div>
-
         </div>
 
         <div class="mt-6 p-4 bg-gray-800 rounded-lg shadow-lg text-center">
@@ -153,19 +142,36 @@
             </button>
         </div>
 
+        <div class="mt-6 p-4 bg-gray-800 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold mb-4 text-center">Análise de Desempenho</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <div class="md:col-span-1 p-4 border border-gray-700 rounded">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Distribuição de Ciclos</h3>
+                    <canvas id="cycle-chart"></canvas>
+                </div>
+
+                <div class="md:col-span-1 p-4 border border-gray-700 rounded">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Decomposição do CPI</h3>
+                    <canvas id="cpi-stack-chart"></canvas>
+                </div>
+
+                <div class="md:col-span-1 p-4 border border-gray-700 rounded">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Mix de Instruções</h3>
+                    <canvas id="inst-mix-chart"></canvas>
+                </div>
+
+            </div>
+        </div>
+
     </div>
 
     <script>
         // --- CLASSE CACHE (Sem alterações) ---
         class Cache {
             constructor(name, size, associativity, blockSize, latency) {
-                this.name = name;
-                this.size = size;
-                this.associativity = associativity;
-                this.blockSize = blockSize;
-                this.latency = latency;
-                this.hits = 0;
-                this.misses = 0;
+                this.name = name; this.size = size; this.associativity = associativity; this.blockSize = blockSize;
+                this.latency = latency; this.hits = 0; this.misses = 0;
                 this.numSets = size / (blockSize * associativity);
                 if (!Number.isInteger(this.numSets) || this.numSets <= 0 || (this.numSets & (this.numSets - 1)) !== 0) {
                     this.numSets = Math.max(1, 2**Math.floor(Math.log2(this.numSets)));
@@ -173,8 +179,7 @@
                 if (!Number.isInteger(blockSize) || blockSize <= 0 || (blockSize & (blockSize - 1)) !== 0) {
                     blockSize = Math.max(1, 2**Math.floor(Math.log2(blockSize)));
                 }
-                this.offsetBits = Math.log2(blockSize);
-                this.indexBits = Math.log2(this.numSets);
+                this.offsetBits = Math.log2(blockSize); this.indexBits = Math.log2(this.numSets);
                 this.tagBits = 32 - this.offsetBits - this.indexBits;
                 this.sets = new Array(this.numSets);
                 for (let i = 0; i < this.numSets; i++) {
@@ -191,21 +196,16 @@
                 const accessTime = this.hits + this.misses + 1;
                 for (const block of targetSet) {
                     if (block.valid && block.tag === tag) {
-                        this.hits++;
-                        block.lruCounter = accessTime;
+                        this.hits++; block.lruCounter = accessTime;
                         return { hit: true, latency: this.latency };
                     }
                 }
                 this.misses++;
                 let lruBlock = targetSet[0];
                 for (let i = 1; i < this.associativity; i++) {
-                    if (targetSet[i].lruCounter < lruBlock.lruCounter) {
-                        lruBlock = targetSet[i];
-                    }
+                    if (targetSet[i].lruCounter < lruBlock.lruCounter) lruBlock = targetSet[i];
                 }
-                lruBlock.valid = true;
-                lruBlock.tag = tag;
-                lruBlock.lruCounter = accessTime;
+                lruBlock.valid = true; lruBlock.tag = tag; lruBlock.lruCounter = accessTime;
                 return { hit: false, latency: this.latency + missPenalty };
             }
         }
@@ -215,10 +215,8 @@
 
             const simulator = {
                 // Estado do Sistema
-                registers: new Array(32).fill(0),
-                dataMemory: new Uint8Array(1024), 
-                instructionMemory: [],
-                pc: 0,
+                registers: new Array(32).fill(0), dataMemory: new Uint8Array(1024), 
+                instructionMemory: [], pc: 0,
 
                 // Estado da Cache
                 l1iCache: null, l1dCache: null,
@@ -228,10 +226,19 @@
                 // Estado do Pipeline
                 pipelineStages: { IF_UI: null, ID: null, EX: null, MEM: null, WB: null },
 
-                // Métricas
-                metrics: { cycles: 0, instructions: 0, dataStalls: 0, memStalls: 0, controlFlushes: 0, branchesTaken: 0 },
+                // --- ATUALIZADO: Métricas ---
+                metrics: { 
+                    cycles: 0, instructions: 0, 
+                    dataStalls: 0, 
+                    l1iStalls: 0,    // (era memStalls)
+                    l1dStalls: 0,    // (era memStalls)
+                    controlFlushes: 0, 
+                    branchesTaken: 0,
+                    instructionMix: { alu: 0, load: 0, store: 0, branch: 0, jump: 0 } // (Novo)
+                },
 
-                // --- ATUALIZADO: Programas de Benchmark ---
+                // --- ATUALIZADO: Benchmarks ---
+                // --- ATUALIZADO: Benchmarks ---
                 benchmarks: {
                     'sum': `
 # 1. Somatório (ALU-bound)
@@ -315,43 +322,37 @@ add x8, x7, x7
 `,
                     'isa': `
 # 7. Teste ISA Completo (Novas Ops)
-# Testa and, or, xor, slt, bne, jalr
 addi x1, x0, 10
 addi x2, x0, 12
-and x3, x1, x2   # x3 = 8
-or  x4, x1, x2   # x4 = 14
-xor x5, x1, x2   # x5 = 6
-slt x6, x1, x2   # x6 = 1 (10 < 12)
-slt x7, x2, x1   # x7 = 0 (12 < 10)
-bne x1, x2, 2    # Desvio TOMADO (10 != 12)
-addi x8, x0, 1   # (pulado)
-addi x9, x0, 1   # (pulado)
+and x3, x1, x2
+or  x4, x1, x2
+xor x5, x1, x2
+slt x6, x1, x2
+slt x7, x2, x1
+bne x1, x2, 2
+addi x8, x0, 1
 # Destino de bne:
-addi x10, x0, 44 # Endereço de "target"
-jalr x0, 0(x10)  # Salta para PC=44 (índice 11)
+addi x10, x0, 48 # Endereço de "target" (PC 12 * 4 = 48)
+jalr x0, 0(x10)  # Salta para PC=12
 addi x11, x0, 1  # (pulado)
 target:
 addi x12, x0, 12 # Fim da execução
 `
                 },
 
-                // Referências da UI
+                // --- ATUALIZADO: Referências da UI ---
                 ui: {
                     pipeline: {
-                        if: document.getElementById('pipeline-if'),
-                        id: document.getElementById('pipeline-id'),
-                        ex: document.getElementById('pipeline-ex'),
-                        mem: document.getElementById('pipeline-mem'),
+                        if: document.getElementById('pipeline-if'), id: document.getElementById('pipeline-id'),
+                        ex: document.getElementById('pipeline-ex'), mem: document.getElementById('pipeline-mem'),
                         wb: document.getElementById('pipeline-wb'),
                     },
                     metrics: {
-                        pc: document.getElementById('metrics-pc'),
-                        cycles: document.getElementById('metrics-cycles'),
-                        instructions: document.getElementById('metrics-instructions'),
-                        stalls: document.getElementById('metrics-stalls'),
-                        cacheStalls: document.getElementById('metrics-cache-stalls'),
-                        flushes: document.getElementById('metrics-flushes'),
-                        taken: document.getElementById('metrics-taken'),
+                        pc: document.getElementById('metrics-pc'), cycles: document.getElementById('metrics-cycles'),
+                        instructions: document.getElementById('metrics-instructions'), stalls: document.getElementById('metrics-stalls'),
+                        l1iStalls: document.getElementById('metrics-l1i-stalls'), // (era cacheStalls)
+                        l1dStalls: document.getElementById('metrics-l1d-stalls'), // (Novo)
+                        flushes: document.getElementById('metrics-flushes'), taken: document.getElementById('metrics-taken'),
                     },
                     finalMetrics: {
                         cpi: document.getElementById('final-cpi'), ipc: document.getElementById('final-ipc'),
@@ -374,8 +375,13 @@ addi x12, x0, 12 # Fim da execução
                         l1d_latency: document.getElementById('l1d-latency'),
                         miss_penalty: document.getElementById('miss-penalty'),
                     },
+                    // Gráficos
                     cycleChart: null,
                     cycleChartCanvas: document.getElementById('cycle-chart'),
+                    cpiStackChart: null, // (Novo)
+                    cpiStackChartCanvas: document.getElementById('cpi-stack-chart'), // (Novo)
+                    instMixChart: null, // (Novo)
+                    instMixChartCanvas: document.getElementById('inst-mix-chart'), // (Novo)
                 },
 
                 // --- FUNÇÕES DE INICIALIZAÇÃO E PARSER ---
@@ -405,20 +411,29 @@ addi x12, x0, 12 # Fim da execução
                     this.ui.benchmarkSelect.addEventListener('change', this.loadBenchmark.bind(this));
                 },
                 
+                // --- ATUALIZADO: reset() ---
                 reset: function() {
                     console.log("Resetando simulador...");
                     this.registers.fill(0); this.dataMemory.fill(0);
                     this.instructionMemory = []; this.pc = 0;
                     this.pipelineStages = { IF_UI: null, ID: null, EX: null, MEM: null, WB: null };
-                    this.metrics = { cycles: 0, instructions: 0, dataStalls: 0, memStalls: 0, controlFlushes: 0, branchesTaken: 0 };
+                    // Métricas resetadas
+                    this.metrics = { 
+                        cycles: 0, instructions: 0, 
+                        dataStalls: 0, l1iStalls: 0, l1dStalls: 0, 
+                        controlFlushes: 0, branchesTaken: 0,
+                        instructionMix: { alu: 0, load: 0, store: 0, branch: 0, jump: 0 }
+                    };
                     this.ifStallCycles = 0; this.memStallCycles = 0;
+                    // Caches recriadas
                     const l1i_lat = parseInt(this.ui.config.l1i_latency.value) || 1;
                     const l1d_lat = parseInt(this.ui.config.l1d_latency.value) || 1;
                     this.missPenalty = parseInt(this.ui.config.miss_penalty.value) || 10;
                     this.l1iCache = new Cache("L1I", 1024, 2, 16, l1i_lat);
                     this.l1dCache = new Cache("L1D", 2048, 4, 16, l1d_lat);
-                    this.clearFinalMetricsUI();
-                    this.updateUI();
+                    
+                    this.clearFinalMetricsUI(); // Limpa métricas e gráficos
+                    this.updateUI(); // Limpa métricas de corrida
                     this.toggleUIControls(true);
                 },
                 
@@ -433,17 +448,25 @@ addi x12, x0, 12 # Fim da execução
                 loadBenchmark: function(event) {
                     const benchmarkKey = event.target.value;
                     if (benchmarkKey && this.benchmarks[benchmarkKey]) {
-                        this.ui.codeInput.value = this.benchmarks[benchmarkKey].trim();
+                        // Limpa o benchmark (remove comentários, quebra de linha)
+                        this.ui.codeInput.value = this.benchmarks[benchmarkKey]
+                            .split('\n')
+                            .map(line => line.split('#')[0].trim())
+                            .filter(line => line.length > 0)
+                            .join('\n');
                     } else {
                         this.ui.codeInput.value = '';
                     }
                 },
 
+                // --- ATUALIZADO: clearFinalMetricsUI() ---
                 clearFinalMetricsUI: function() {
-                    if (this.ui.cycleChart) {
-                        this.ui.cycleChart.destroy();
-                        this.ui.cycleChart = null;
-                    }
+                    // Destrói gráficos antigos se existirem
+                    if (this.ui.cycleChart) { this.ui.cycleChart.destroy(); this.ui.cycleChart = null; }
+                    if (this.ui.cpiStackChart) { this.ui.cpiStackChart.destroy(); this.ui.cpiStackChart = null; }
+                    if (this.ui.instMixChart) { this.ui.instMixChart.destroy(); this.ui.instMixChart = null; }
+
+                    // Limpa tabela de métricas
                     for (const key in this.ui.finalMetrics) {
                         const el = this.ui.finalMetrics[key];
                         if (el) el.textContent = '0.00';
@@ -454,37 +477,33 @@ addi x12, x0, 12 # Fim da execução
 
                 parseRegister: function(r) { return parseInt(r.replace('x', '').replace('r', '')); },
                 
-                // --- ATUALIZADO: parse() ---
                 parse: function(code) {
                     const lines = code.split('\n');
                     lines.forEach(line => {
                         let trimmedLine = line.split('#')[0].split('//')[0].trim();
                         if (!trimmedLine) return;
+                        // Remove labels (loop: end:)
+                        trimmedLine = trimmedLine.replace(/[a-zA-Z0-9]+:/, '').trim();
+                        if (!trimmedLine) return;
+
                         const parts = trimmedLine.replace(/,/g, '').replace(/\(/, ' ').replace(/\)/, '').split(/\s+/).filter(p => p);
                         if (parts.length === 0) return;
                         const op = parts[0].toLowerCase();
                         let inst = { op: op, line: trimmedLine };
                         try {
                             switch (op) {
-                                // R-type: add, sub, and, or, xor, slt
                                 case 'add': case 'sub': case 'and': case 'or': case 'xor': case 'slt':
                                     inst.rd = this.parseRegister(parts[1]); inst.rs1 = this.parseRegister(parts[2]); inst.rs2 = this.parseRegister(parts[3]); break;
-                                // I-type: addi
                                 case 'addi':
                                     inst.rd = this.parseRegister(parts[1]); inst.rs1 = this.parseRegister(parts[2]); inst.imm = parseInt(parts[3]); break;
-                                // I-type (Load): lw
                                 case 'lw':
                                     inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
-                                // I-type (jalr)
                                 case 'jalr':
                                     inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
-                                // S-type: sw
                                 case 'sw':
                                     inst.rs2 = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); inst.rs1 = this.parseRegister(parts[3]); break;
-                                // B-type: beq, bne
                                 case 'beq': case 'bne':
                                     inst.rs1 = this.parseRegister(parts[1]); inst.rs2 = this.parseRegister(parts[2]); inst.imm = parseInt(parts[3]); break;
-                                // J-type: jal
                                 case 'jal':
                                     inst.rd = this.parseRegister(parts[1]); inst.imm = parseInt(parts[2]); break;
                                 default: 
@@ -497,19 +516,46 @@ addi x12, x0, 12 # Fim da execução
                 },
 
                 // --- FUNÇÕES DO PIPELINE ---
+                
+                // --- ATUALIZADO: doWB() ---
                 doWB: function() {
                     const inst = this.pipelineStages.WB;
                     if (!inst) return;
                     const op = inst.op;
-                    // --- ATUALIZADO: slt, and, or, xor, jalr escrevem em rd ---
-                    if (op === 'add' || op === 'sub' || op === 'addi' || op === 'lw' || op === 'jal' ||
-                        op === 'and' || op === 'or' || op === 'xor' || op === 'slt' || op === 'jalr') {
+                    let writesRd = false;
+
+                    // Classifica a instrução para o Mix
+                    switch(op) {
+                        case 'add': case 'sub': case 'and': case 'or': case 'xor': case 'slt': case 'addi':
+                            this.metrics.instructionMix.alu++;
+                            writesRd = true;
+                            break;
+                        case 'lw':
+                            this.metrics.instructionMix.load++;
+                            writesRd = true;
+                            break;
+                        case 'sw':
+                            this.metrics.instructionMix.store++;
+                            break;
+                        case 'beq': case 'bne':
+                            this.metrics.instructionMix.branch++;
+                            break;
+                        case 'jal': case 'jalr':
+                            this.metrics.instructionMix.jump++;
+                            writesRd = true;
+                            break;
+                    }
+
+                    // Executa a escrita
+                    if (writesRd) {
                         if (inst.rd > 0) {
                             this.registers[inst.rd] = inst.writeBackData;
                         }
                     }
-                    this.metrics.instructions++;
+                    this.metrics.instructions++; // Instrução concluída
                 },
+
+                // --- ATUALIZADO: doMEM() ---
                 doMEM: function() {
                     const inst = this.pipelineStages.MEM;
                     if (!inst) { this.pipelineStages.WB = null; return false; }
@@ -518,8 +564,11 @@ addi x12, x0, 12 # Fim da execução
                         const addr = inst.aluResult;
                         const result = this.l1dCache.access(addr, this.missPenalty);
                         if (!result.hit) {
-                            this.memStallCycles = result.latency - 1; this.metrics.memStalls++;
-                            this.pipelineStages.WB = null; return true;
+                            console.log(`!!! L1D MISS no endereço ${addr} ( ${inst.line} ) !!!`);
+                            this.memStallCycles = result.latency - 1; 
+                            this.metrics.l1dStalls++; // (Incrementa no primeiro ciclo)
+                            this.pipelineStages.WB = null; 
+                            return true; // STALL
                         }
                     }
                     this.pipelineStages.WB = inst;
@@ -542,14 +591,13 @@ addi x12, x0, 12 # Fim da execução
                     return false;
                 },
                 
-                // --- ATUALIZADO: doEX() ---
+                // (doEX, handleBranchTaken, doID - Sem alteração)
                 doEX: function() {
                     const inst = this.pipelineStages.EX;
                     this.pipelineStages.MEM = inst;
                     if (!inst) return;
                     const instMEM = this.pipelineStages.MEM, instWB = this.pipelineStages.WB;
                     let rs1Val = inst.rs1Val, rs2Val = inst.rs2Val;
-                    // Lógica de Forwarding (sem alteração)
                     if (instWB && instWB.rd > 0 && instWB.writeBackData !== undefined) {
                         if (instWB.rd === inst.rs1) rs1Val = instWB.writeBackData;
                         if (instWB.rd === inst.rs2) rs2Val = instWB.writeBackData;
@@ -559,31 +607,24 @@ addi x12, x0, 12 # Fim da execução
                         if (instMEM.rd === inst.rs2 && !(instWB && instWB.rd === inst.rs2)) rs2Val = instMEM.aluResult;
                     }
                     inst.rs1Val = rs1Val; inst.rs2Val = rs2Val;
-                    
-                    // Lógica da ULA (atualizada)
                     const op = inst.op;
                     switch (op) {
-                        // Originais
                         case 'add': inst.aluResult = (rs1Val + rs2Val) | 0; break;
                         case 'sub': inst.aluResult = (rs1Val - rs2Val) | 0; break;
                         case 'addi': inst.aluResult = (rs1Val + inst.imm) | 0; break;
                         case 'lw': case 'sw': inst.aluResult = (rs1Val + inst.imm) | 0; break;
-                        
-                        // Novas R-type
                         case 'and': inst.aluResult = (rs1Val & rs2Val) | 0; break;
                         case 'or':  inst.aluResult = (rs1Val | rs2Val) | 0; break;
                         case 'xor': inst.aluResult = (rs1Val ^ rs2Val) | 0; break;
                         case 'slt': inst.aluResult = (rs1Val < rs2Val) ? 1 : 0; break;
-
-                        // Desvios
                         case 'beq': if (rs1Val === rs2Val) this.handleBranchTaken(inst.pc + inst.imm); break;
-                        case 'bne': if (rs1Val !== rs2Val) this.handleBranchTaken(inst.pc + inst.imm); break; // NOVO
+                        case 'bne': if (rs1Val !== rs2Val) this.handleBranchTaken(inst.pc + inst.imm); break;
                         case 'jal': inst.aluResult = inst.pc + 1; this.handleBranchTaken(inst.pc + inst.imm); break;
-                        case 'jalr': // NOVO
-                            inst.aluResult = inst.pc + 1; // Valor de link (PC+1)
-                            const targetAddr = (rs1Val + inst.imm) | 0; // Endereço absoluto
-                            const targetPC = targetAddr / 4; // Converte endereço de byte para índice de PC
-                            this.handleBranchTaken(targetPC); // Salta para o índice
+                        case 'jalr':
+                            inst.aluResult = inst.pc + 1; 
+                            const targetAddr = (rs1Val + inst.imm) | 0;
+                            const targetPC = Math.floor(targetAddr / 4); // Converte para índice
+                            this.handleBranchTaken(targetPC);
                             break;
                     }
                 },
@@ -596,10 +637,8 @@ addi x12, x0, 12 # Fim da execução
                 doID: function() {
                     const instID = this.pipelineStages.ID, instEX = this.pipelineStages.EX;
                     if (instID && instEX && instEX.op === 'lw' && instEX.rd !== 0) { 
-                        // --- ATUALIZADO: jalr também usa rs1 ---
                         const idUsesRs1 = (instID.rs1 !== undefined) && (instID.rs1 === instEX.rd);
                         const idUsesRs2 = (instID.rs2 !== undefined) && (instID.rs2 === instEX.rd);
-                        
                         if (idUsesRs1 || idUsesRs2) {
                             this.pipelineStages.EX = null; return true;
                         }
@@ -610,6 +649,8 @@ addi x12, x0, 12 # Fim da execução
                     if (instID.rs2 !== undefined) instID.rs2Val = (instID.rs2 === 0) ? 0 : this.registers[instID.rs2];
                     return false;
                 },
+
+                // --- ATUALIZADO: doIF() ---
                 doIF: function() {
                     if (this.pc >= this.instructionMemory.length) {
                         this.pipelineStages.ID = null; this.pipelineStages.IF_UI = null;
@@ -618,7 +659,9 @@ addi x12, x0, 12 # Fim da execução
                     const instAddr = this.pc * 4; 
                     const result = this.l1iCache.access(instAddr, this.missPenalty);
                     if (!result.hit) {
-                        this.ifStallCycles = result.latency - 1; this.metrics.memStalls++;
+                        console.log(`!!! L1I MISS no PC ${this.pc} (addr ${instAddr}) !!!`);
+                        this.ifStallCycles = result.latency - 1; 
+                        this.metrics.l1iStalls++; // (Incrementa no primeiro ciclo)
                         this.pipelineStages.ID = null; this.pipelineStages.IF_UI = '(cache miss)';
                         return true;
                     }
@@ -630,33 +673,42 @@ addi x12, x0, 12 # Fim da execução
                     return false;
                 },
 
-                // --- FUNÇÕES DE EXECUÇÃO (Sem alterações) ---
+                // --- ATUALIZADO: step() ---
                 step: function() {
                     this.metrics.cycles++;
-                    this.doWB();
+                    this.doWB(); // Sempre drena
+
+                    // 1. Stall de MEM (L1D)
                     if (this.memStallCycles > 0) {
-                        this.memStallCycles--; this.metrics.memStalls++;
-                        this.pipelineStages.IF_UI = '(mem stall)';
+                        this.memStallCycles--; this.metrics.l1dStalls++; // (Incrementa nos ciclos parados)
+                        this.pipelineStages.IF_UI = '(L1D stall)';
                         this.updateUI(); return;
                     }
                     const memStalledThisCycle = this.doMEM();
                     if (memStalledThisCycle) {
-                        this.pipelineStages.IF_UI = '(mem stall)';
+                        this.pipelineStages.IF_UI = '(L1D stall)';
                         this.updateUI(); return;
                     }
+
+                    // 2. Pipeline flui
                     this.doEX();
+
+                    // 3. Stall de Dados (lw-use)
                     const dataStalledThisCycle = this.doID();
                     if (dataStalledThisCycle) {
                         this.metrics.dataStalls++;
                         this.pipelineStages.IF_UI = '(data stall)';
                         this.updateUI(); return;
                     }
+
+                    // 4. Stall de IF (L1I)
                     if (this.ifStallCycles > 0) {
-                        this.ifStallCycles--; this.metrics.memStalls++;
-                        this.pipelineStages.ID = null; this.pipelineStages.IF_UI = '(cache miss)';
+                        this.ifStallCycles--; this.metrics.l1iStalls++; // (Incrementa nos ciclos parados)
+                        this.pipelineStages.ID = null; this.pipelineStages.IF_UI = '(L1I miss)';
                         this.updateUI(); return;
                     }
                     this.doIF();
+                    
                     this.updateUI();
                 },
                 isPipelineEmpty: function() {
@@ -687,61 +739,106 @@ addi x12, x0, 12 # Fim da execução
                     this.toggleUIControls(true);
                 },
 
-                // --- FUNÇÕES DE MÉTRICAS E UI (Sem alterações) ---
+                // --- ATUALIZADO: calculateFinalMetrics() ---
                 calculateFinalMetrics: function() {
                     const m = this.metrics;
-                    const cpi = (m.instructions > 0) ? (m.cycles / m.instructions) : 0;
-                    const ipc = (m.cycles > 0) ? (m.instructions / m.cycles) : 0;
+                    const insts = m.instructions; // Total de instruções concluídas
+                    const cycles = m.cycles;
                     
+                    const cpi = (insts > 0) ? (cycles / insts) : 0;
+                    const ipc = (cycles > 0) ? (insts / cycles) : 0;
+                    
+                    // L1I
                     const l1i_a = this.l1iCache.hits + this.l1iCache.misses;
                     const l1i_mr = (l1i_a > 0) ? (this.l1iCache.misses / l1i_a) : 0;
                     const l1i_amat = this.l1iCache.latency + (l1i_mr * this.missPenalty);
-                    const l1i_mpki = (m.instructions > 0) ? (this.l1iCache.misses * 1000 / m.instructions) : 0;
+                    const l1i_mpki = (insts > 0) ? (this.l1iCache.misses * 1000 / insts) : 0;
                     
+                    // L1D
                     const l1d_a = this.l1dCache.hits + this.l1dCache.misses;
                     const l1d_mr = (l1d_a > 0) ? (this.l1dCache.misses / l1d_a) : 0;
                     const l1d_amat = this.l1dCache.latency + (l1d_mr * this.missPenalty);
-                    const l1d_mpki = (m.instructions > 0) ? (this.l1dCache.misses * 1000 / m.instructions) : 0;
+                    const l1d_mpki = (insts > 0) ? (this.l1dCache.misses * 1000 / insts) : 0;
 
+                    // Atualiza Tabela de Métricas
                     const f = this.ui.finalMetrics;
-                    f.cpi.textContent = cpi.toFixed(3);
-                    f.ipc.textContent = ipc.toFixed(3);
+                    f.cpi.textContent = cpi.toFixed(3); f.ipc.textContent = ipc.toFixed(3);
                     f.l1i_access.textContent = l1i_a; f.l1i_hits.textContent = this.l1iCache.hits; f.l1i_misses.textContent = this.l1iCache.misses;
                     f.l1i_missrate.textContent = (l1i_mr * 100).toFixed(2) + '%';
-                    f.l1i_amat.textContent = l1i_amat.toFixed(2);
-                    f.l1i_mpki.textContent = l1i_mpki.toFixed(2);
+                    f.l1i_amat.textContent = l1i_amat.toFixed(2); f.l1i_mpki.textContent = l1i_mpki.toFixed(2);
                     f.l1d_access.textContent = l1d_a; f.l1d_hits.textContent = this.l1dCache.hits; f.l1d_misses.textContent = this.l1dCache.misses;
                     f.l1d_missrate.textContent = (l1d_mr * 100).toFixed(2) + '%';
-                    f.l1d_amat.textContent = l1d_amat.toFixed(2);
-                    f.l1d_mpki.textContent = l1d_mpki.toFixed(2);
+                    f.l1d_amat.textContent = l1d_amat.toFixed(2); f.l1d_mpki.textContent = l1d_mpki.toFixed(2);
 
-                    if (this.ui.cycleChart) { this.ui.cycleChart.destroy(); }
-                    const totalStalls = m.dataStalls + m.memStalls + m.controlFlushes;
-                    // Evita ciclos úteis negativos se a simulação for muito curta
-                    const usefulCycles = Math.max(0, m.cycles - totalStalls);
-                    const ctx = this.ui.cycleChartCanvas.getContext('2d');
-                    this.ui.cycleChart = new Chart(ctx, {
+                    // --- Renderiza Gráficos ---
+                    this.clearFinalMetricsUI(); // Limpa canvas antigos
+                    const chartColors = ['#16a34a', '#eab308', '#ea580c', '#dc2626', '#3b82f6']; // green, yellow, orange, red, blue
+                    const chartOptions = {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top', labels: { color: '#e5e7eb' } },
+                            tooltip: {
+                                enabled: true, backgroundColor: '#111827', titleColor: '#e5e7eb',
+                                bodyColor: '#e5e7eb', borderColor: '#4b5563', borderWidth: 1,
+                            }
+                        }
+                    };
+                    const pieOptions = { ...chartOptions, plugins: { ...chartOptions.plugins, legend: { ...chartOptions.plugins.legend, position: 'right' } } };
+
+                    // Gráfico 1: Distribuição de Ciclos (Pizza)
+                    const totalStalls = m.dataStalls + m.l1iStalls + m.l1dStalls + m.controlFlushes;
+                    const usefulCycles = Math.max(0, cycles - totalStalls);
+                    this.ui.cycleChart = new Chart(this.ui.cycleChartCanvas.getContext('2d'), {
                         type: 'pie',
                         data: {
-                            labels: ['Execução Útil', 'Stalls (Dados)', 'Stalls (Cache)', 'Flushes (Controle)'],
+                            labels: ['Execução Útil', 'Stalls (Dados)', 'Stalls (L1I)', 'Stalls (L1D)', 'Flushes (Controle)'],
                             datasets: [{
-                                data: [usefulCycles, m.dataStalls, m.memStalls, m.controlFlushes],
-                                backgroundColor: ['#16a34a', '#eab308', '#ea580c', '#dc2626'],
+                                data: [usefulCycles, m.dataStalls, m.l1iStalls, m.l1dStalls, m.controlFlushes],
+                                backgroundColor: chartColors,
                                 borderColor: '#374151',
                             }]
                         },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: { position: 'top', labels: { color: '#e5e7eb' } },
-                                tooltip: {
-                                    enabled: true, backgroundColor: '#111827', titleColor: '#e5e7eb',
-                                    bodyColor: '#e5e7eb', borderColor: '#4b5563', borderWidth: 1,
-                                }
-                            }
-                        }
+                        options: pieOptions
+                    });
+
+                    // Gráfico 2: Decomposição do CPI (Barras Empilhadas)
+                    const cpi_base = (insts > 0) ? (usefulCycles / insts) : 0;
+                    const cpi_data = (insts > 0) ? (m.dataStalls / insts) : 0;
+                    const cpi_l1i = (insts > 0) ? (m.l1iStalls / insts) : 0;
+                    const cpi_l1d = (insts > 0) ? (m.l1dStalls / insts) : 0;
+                    const cpi_control = (insts > 0) ? (m.controlFlushes / insts) : 0;
+                    this.ui.cpiStackChart = new Chart(this.ui.cpiStackChartCanvas.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['CPI'],
+                            datasets: [
+                                { label: 'CPI Base', data: [cpi_base], backgroundColor: chartColors[0] },
+                                { label: 'Dados', data: [cpi_data], backgroundColor: chartColors[1] },
+                                { label: 'L1I', data: [cpi_l1i], backgroundColor: chartColors[2] },
+                                { label: 'L1D', data: [cpi_l1d], backgroundColor: '#f97316' /* orange-500 */ },
+                                { label: 'Controle', data: [cpi_control], backgroundColor: chartColors[3] }
+                            ]
+                        },
+                        options: { ...chartOptions, scales: { x: { stacked: true }, y: { stacked: true, ticks: { color: '#e5e7eb' } } } }
+                    });
+
+                    // Gráfico 3: Mix de Instruções (Rosca)
+                    const mix = m.instructionMix;
+                    this.ui.instMixChart = new Chart(this.ui.instMixChartCanvas.getContext('2d'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['ALU', 'Loads', 'Stores', 'Branches', 'Jumps'],
+                            datasets: [{
+                                data: [mix.alu, mix.load, mix.store, mix.branch, mix.jump],
+                                backgroundColor: chartColors,
+                                borderColor: '#374151',
+                            }]
+                        },
+                        options: pieOptions
                     });
                 },
+                
+                // --- ATUALIZADO: updateUI() ---
                 updateUI: function() {
                     const getLine = (stage) => this.pipelineStages[stage]?.line ?? 'vazio';
                     this.ui.pipeline.if.textContent = this.pipelineStages.IF_UI ?? 'vazio'; 
@@ -759,7 +856,8 @@ addi x12, x0, 12 # Fim da execução
                     this.ui.metrics.cycles.textContent = this.metrics.cycles;
                     this.ui.metrics.instructions.textContent = this.metrics.instructions;
                     this.ui.metrics.stalls.textContent = this.metrics.dataStalls;
-                    this.ui.metrics.cacheStalls.textContent = this.metrics.memStalls;
+                    this.ui.metrics.l1iStalls.textContent = this.metrics.l1iStalls; // (Atualizado)
+                    this.ui.metrics.l1dStalls.textContent = this.metrics.l1dStalls; // (Atualizado)
                     this.ui.metrics.flushes.textContent = this.metrics.controlFlushes;
                     this.ui.metrics.taken.textContent = this.metrics.branchesTaken;
                 }
